@@ -59,7 +59,11 @@ async function serveStatic(pathname: string): Promise<Response> {
   try {
     const body = await readFile(full);
     return new Response(body, {
-      headers: { "content-type": MIME[ext] ?? "application/octet-stream" },
+      headers: {
+        "content-type": MIME[ext] ?? "application/octet-stream",
+        // This is a local tool edited live; never let the browser hold an old copy.
+        "cache-control": "no-store",
+      },
     });
   } catch {
     return new Response("not found", { status: 404 });

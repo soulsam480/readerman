@@ -9,7 +9,25 @@
 #doc pre {
   overflow-x: auto;
   max-width: 100%;
+  background-color: var(--color-neutral);
+  color: var(--color-neutral-content);
+
+  /* sugar-high reads these as var(--sh-<type>) from the inline spans it emits. */
+  --sh-identifier: #c9d1d9;
+  --sh-keyword: #c792ea;
+  --sh-string: #9ece6a;
+  --sh-class: #ffcb6b;
+  --sh-property: #82aaff;
+  --sh-entity: #f78c6c;
+  --sh-jsxliterals: #89ddff;
+  --sh-sign: #89ddff;
+  --sh-comment: #7d8799;
 }
+
+#doc pre .sh__token--comment {
+  font-style: italic;
+}
+
 #doc :is(p, li, h1, h2, h3, h4, td) {
   overflow-wrap: anywhere;
 }

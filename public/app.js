@@ -1,4 +1,5 @@
 import { marked } from "/vendor/marked.js";
+import { highlight, lang as canonicalLang } from "/vendor/sugar.min.js";
 
 marked.setOptions({ gfm: true, breaks: false });
 
@@ -34,35 +35,76 @@ const fmtSize = (bytes) =>
       : `${bytes} B`;
 
 const fmtAge = (ms) => {
-  const mins = Math.round((Date.now() - ms) / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.round(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.round(hours / 24);
-  if (days < 30) return `${days}d ago`;
-  return new Date(ms).toLocaleDateString();
+  const mins = Math.floor((Date.now() - ms) / 60000);
+  if (mins < 1) return "now";
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo`;
+  return `${Math.floor(months / 12)}y`;
 };
+
+/** File names all end in .md; the extension is noise in a list of markdown files. */
+const displayName = (name) => name.replace(/\.md$/, "");
+
+/** The folder(s) a doc sits in, below its doc dir: "plans", "sdd/2026-10-24-foo". */
+function subPath(doc) {
+  const parts = doc.rel.split("/");
+  const kindIndex = parts.indexOf(doc.kind);
+  return parts.slice(kindIndex + 1, -1).join("/");
+}
 
 function matches(doc, needle) {
   if (!needle) return true;
   return doc.rel.toLowerCase().includes(needle) || doc.name.toLowerCase().includes(needle);
 }
 
-function fileButton(doc) {
+/** One file row: name, age on the right. Folder context comes from the tree above it. */
+function fileRow(doc) {
   const li = document.createElement("li");
   const button = document.createElement("button");
-  button.className = "flex flex-col items-start gap-0.5 text-left w-full";
-  if (current?.path === doc.path) button.classList.add("menu-active");
-  button.dataset.path = doc.path;
+  button.type = "button";
+  const active = current?.path === doc.path;
+  button.className =
+    "flex w-full items-baseline gap-2 rounded-field px-1.5 py-[2px] text-left transition-colors hover:bg-base-300/70 focus-visible:outline-2 focus-visible:outline-primary/50";
+  if (active) button.classList.add("bg-base-300");
 
   const name = document.createElement("span");
-  name.className = "truncate w-full";
-  name.textContent = doc.name;
+  name.className = `min-w-0 flex-1 truncate text-[13px] leading-[20px] ${
+    active ? "font-medium text-base-content" : "text-base-content/85"
+  }`;
+  name.textContent = displayName(doc.name);
+  name.title = doc.name;
+
+  const age = document.createElement("span");
+  age.className = "shrink-0 text-[10.5px] tabular-nums leading-[20px] text-base-content/40";
+  age.textContent = fmtAge(doc.mtime);
+
+  button.append(name, age);
+  button.addEventListener("click", () => open(doc));
+  li.append(button);
+  return li;
+}
+
+/** Search result: no hierarchy around it, so the path is spelled out. */
+function searchRow(doc) {
+  const li = document.createElement("li");
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className =
+    "w-full rounded-field px-1.5 py-[3px] text-left transition-colors hover:bg-base-300/70 focus-visible:outline-2 focus-visible:outline-primary/50";
+  if (current?.path === doc.path) button.classList.add("bg-base-300");
+
+  const name = document.createElement("span");
+  name.className = "block truncate text-[13px] leading-[18px] text-base-content/85";
+  name.textContent = displayName(doc.name);
 
   const meta = document.createElement("span");
-  meta.className = "text-[11px] text-base-content/40 truncate w-full";
-  meta.textContent = `${doc.rel.split("/").slice(doc.rel.split("/").indexOf(doc.kind) + 1, -1).join("/") || doc.kind} · ${fmtAge(doc.mtime)}`;
+  meta.className = "block truncate text-[10.5px] leading-[14px] text-base-content/45";
+  meta.textContent = doc.rel.split("/").slice(0, -1).join("/");
 
   button.append(name, meta);
   button.addEventListener("click", () => open(doc));
@@ -89,23 +131,8 @@ function renderTree() {
   if (needle) {
     // Flat list while searching: the whole point is to jump, not to browse.
     const list = document.createElement("ul");
-    list.className = "space-y-0.5";
-    for (const doc of shown.slice(0, 400)) {
-      const li = document.createElement("li");
-      const button = document.createElement("button");
-      button.className = "flex flex-col items-start gap-0.5 text-left w-full rounded-box px-2 py-1 hover:bg-base-300";
-      if (current?.path === doc.path) button.classList.add("bg-base-300");
-      const name = document.createElement("span");
-      name.className = "truncate w-full text-sm";
-      name.textContent = doc.name;
-      const meta = document.createElement("span");
-      meta.className = "text-[11px] text-base-content/40 truncate w-full";
-      meta.textContent = doc.rel;
-      button.append(name, meta);
-      button.addEventListener("click", () => open(doc));
-      li.append(button);
-      list.append(li);
-    }
+    list.className = "space-y-px";
+    for (const doc of shown.slice(0, 400)) list.append(searchRow(doc));
     treeEl.append(list);
     return;
   }
@@ -121,43 +148,81 @@ function renderTree() {
 
   for (const [project, kinds] of [...grouped].sort((a, b) => a[0].localeCompare(b[0]))) {
     const details = document.createElement("details");
-    details.className = "border-b border-base-300/60 pb-1";
-    details.open = current ? current.project === project : project === "personal/tts" || project === "work/web";
+    details.className = "rounded-field";
+    details.open = current ? current.project === project : project === "personal/tts";
 
     const summary = document.createElement("summary");
     summary.className =
-      "flex items-center gap-1.5 cursor-pointer select-none px-2 py-1.5 text-sm font-medium rounded-box hover:bg-base-300 list-none [&::-webkit-details-marker]:hidden";
+      "flex cursor-pointer select-none list-none items-center gap-1.5 rounded-field px-1.5 py-[5px] hover:bg-base-300/70 [&::-webkit-details-marker]:hidden";
     const caret = document.createElement("span");
-    caret.className = "text-base-content/40 text-[10px] transition-transform details-caret";
+    caret.className = "w-2 shrink-0 text-[9px] text-base-content/40 transition-transform";
     caret.textContent = "▶";
     const labelSpan = document.createElement("span");
-    labelSpan.className = "truncate";
+    labelSpan.className = "truncate text-[12.5px] font-medium leading-[18px]";
     labelSpan.textContent = project;
     const total = document.createElement("span");
-    total.className = "ml-auto text-[11px] text-base-content/40";
+    total.className = "ml-auto shrink-0 text-[10.5px] tabular-nums text-base-content/35";
     total.textContent = String([...kinds.values()].reduce((sum, list) => sum + list.length, 0));
     summary.append(caret, labelSpan, total);
     details.append(summary);
-    details.addEventListener("toggle", () => {
-      caret.style.transform = details.open ? "rotate(90deg)" : "none";
-    });
-    caret.style.transform = details.open ? "rotate(90deg)" : "none";
+
+    const setCaret = () => (caret.style.transform = details.open ? "rotate(90deg)" : "none");
+    setCaret();
+    details.addEventListener("toggle", setCaret);
 
     const body = document.createElement("div");
-    body.className = "pl-2";
+    body.className = "ml-[13px] border-l border-base-300 pl-1.5 pb-1";
     const sortedKinds = [...kinds].sort(
       (a, b) => (KIND_ORDER.indexOf(a[0]) + 1 || 99) - (KIND_ORDER.indexOf(b[0]) + 1 || 99),
     );
+    // The doc dir name is structural noise unless a project has more than one.
+    const showKind = sortedKinds.length > 1;
+
     for (const [kind, files] of sortedKinds) {
-      const label = document.createElement("p");
-      label.className = "text-[11px] uppercase tracking-wide text-base-content/40 px-2 pt-1";
-      label.textContent = `${kind} · ${files.length}`;
-      body.append(label);
-      const list = document.createElement("ul");
-      list.className = "space-y-0.5";
-      for (const doc of files) list.append(fileButton(doc));
-      body.append(list);
+      if (showKind) {
+        const label = document.createElement("p");
+        label.className =
+          "px-1.5 pt-1 pb-0.5 text-[10px] font-medium uppercase tracking-[0.12em] text-base-content/40";
+        label.textContent = kind;
+        body.append(label);
+      }
+
+      // Almost every file sits in one folder ("plans"), which is not worth a heading.
+      const folders = new Map();
+      for (const doc of files) {
+        const sub = subPath(doc);
+        if (!folders.has(sub)) folders.set(sub, []);
+        folders.get(sub).push(doc);
+      }
+
+      if (folders.size <= 1) {
+        const list = document.createElement("ul");
+        list.className = "space-y-px";
+        for (const doc of files) list.append(fileRow(doc));
+        body.append(list);
+        continue;
+      }
+
+      const ordered = [...folders.keys()].sort((a, b) => {
+        if (a === "") return -1;
+        if (b === "") return 1;
+        return a.localeCompare(b);
+      });
+      for (const folder of ordered) {
+        if (folder) {
+          const heading = document.createElement("p");
+          heading.className = "truncate px-1.5 pt-1.5 pb-0.5 text-[10px] tracking-wide text-base-content/40";
+          heading.textContent = folder;
+          heading.title = folder;
+          body.append(heading);
+        }
+        const list = document.createElement("ul");
+        list.className = "space-y-px";
+        for (const doc of folders.get(folder)) list.append(fileRow(doc));
+        body.append(list);
+      }
     }
+
     details.append(body);
     treeEl.append(details);
   }
@@ -232,8 +297,28 @@ function wireLinks(root, doc) {
   }
 }
 
+/**
+ * Sugar-high is language-agnostic enough to guess badly, so only fenced blocks that name a
+ * language it knows get coloured. Bare fences are usually output, trees, or prose.
+ */
+function highlightCode(root) {
+  for (const code of root.querySelectorAll("pre > code")) {
+    const match = /language-([\w+-]+)/.exec(code.className);
+    if (!match) continue;
+    const name = canonicalLang(match[1].toLowerCase());
+    if (!name || name === "plaintext") continue;
+    try {
+      code.innerHTML = highlight(code.textContent ?? "", { lang: name });
+      code.dataset.lang = match[1].toLowerCase();
+    } catch {
+      // A bad fence label should never break the document.
+    }
+  }
+}
+
 function paint(doc, content) {
   docEl.innerHTML = marked.parse(content);
+  highlightCode(docEl);
   wireLinks(docEl, doc);
   emptyEl.classList.add("hidden");
   docEl.classList.remove("hidden");

@@ -11,12 +11,12 @@ until you click it, so the browser never holds the corpus in memory.
 
 ```sh
 bun install
-bun run start          # builds app.css, then serves http://localhost:4599
-bun run dev            # same, but rebuilds the server on change
+bun run start          # builds app.css + the vendor bundle, then serves http://localhost:4599
+bun run dev            # same, but restarts the server on change
 ```
 
-`PORT` overrides the port. `bun run css` alone rebuilds the stylesheet after editing
-`public/index.html` or `public/app.js`.
+`PORT` overrides the port. `bun run build` rebuilds the stylesheet and the client vendor
+bundle after editing `public/index.html`, `public/app.js`, or `src/styles.css`.
 
 To keep it running in the background:
 
@@ -52,6 +52,9 @@ markdown, alongside the defaults.
   without restarting the server.
 - **Deep links.** The open file lives in the URL as `?path=/abs/file.md`, so a bookmark or
   a reload returns to the same document.
+- **Syntax highlighting.** Fenced blocks that name a language are coloured with
+  sugar-high (12.6 KB gzipped, bundled at build time). Bare fences are left alone, because
+  they are usually shell output or file trees rather than code.
 - **Relative links.** A `.md` link inside a document opens in the reader when the target is
   already indexed; anything else opens in a new tab.
 - **Reading is guarded.** `/api/file` only serves `.md` files that sit inside a default doc
@@ -72,12 +75,13 @@ markdown, alongside the defaults.
 ## Layout
 
 ```
-src/scan.ts       walk, classify, and whitelist markdown
-src/server.ts     Bun.serve: JSON API + static files
-src/styles.css    Tailwind 4 + daisyUI 5 + typography
-public/index.html drawer shell, search, add-folder dialog
-public/app.js     tree render, markdown render, live poll
-tests/scan.test.ts  scanner and allowlist tests against a fixture tree
+src/scan.ts              walk, classify, and whitelist markdown
+src/server.ts            Bun.serve: JSON API + static files
+src/styles.css          Tailwind 4 + daisyUI 5 + typography + token colors
+src/vendor/sugar-entry.js  bundle entry for sugar-high
+public/index.html       drawer shell, search, add-folder dialog
+public/app.js           tree render, markdown render, highlighting, live poll
+tests/scan.test.ts       scanner and allowlist tests against a fixture tree
 ```
 
 ## Test

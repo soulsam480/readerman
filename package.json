@@ -4,13 +4,16 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "bun run css && bun --watch src/server.ts",
-    "start": "bun run css && bun run src/server.ts",
+    "build": "bun run css && bun run vendor",
+    "dev": "bun run build && bun --watch src/server.ts",
+    "start": "bun run build && bun run src/server.ts",
     "css": "bunx @tailwindcss/cli -i src/styles.css -o public/app.css --minify",
+    "vendor": "bun build src/vendor/sugar-entry.js --minify --target=browser --format=esm --outfile=public/vendor/sugar.min.js",
     "test": "bun test"
   },
   "dependencies": {
-    "marked": "^18.1.1"
+    "marked": "^18.1.1",
+    "sugar-high": "^2.6.4"
   },
   "devDependencies": {
     "@tailwindcss/cli": "^4.3.3",

@@ -19,8 +19,8 @@
           </label>
 
           <div class="min-w-0">
-            <p id="doc-title" class="font-medium truncate">Reader</p>
-            <p id="doc-path" class="text-xs text-base-content/50 truncate">pick a document</p>
+            <p id="doc-title" class="truncate text-[13.5px] font-medium leading-tight">Reader</p>
+            <p id="doc-path" class="truncate text-[11px] leading-tight text-base-content/45">pick a document</p>
           </div>
 
           <div class="flex-1"></div>
@@ -49,22 +49,22 @@
 
       <div class="drawer-side z-20">
         <label for="nav" aria-label="close sidebar" class="drawer-overlay"></label>
-        <aside class="bg-base-200 h-dvh w-80 flex flex-col">
-          <div class="p-3 border-b border-base-300 space-y-2 shrink-0">
-            <label class="input input-sm w-full">
+        <aside class="bg-base-200 h-dvh w-[21rem] flex flex-col">
+          <div class="p-2.5 border-b border-base-300 space-y-1.5 shrink-0">
+            <label class="input input-sm w-full text-[13px]">
               <svg class="size-4 opacity-40" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" d="m21 21-4.3-4.3M17 11a6 6 0 1 1-12 0 6 6 0 0 1 12 0Z" />
               </svg>
               <input id="search" type="search" placeholder="Filter files" autocomplete="off" spellcheck="false" />
             </label>
             <div class="flex items-center gap-1">
-              <button id="refresh" class="btn btn-ghost btn-xs">Rescan</button>
-              <button id="add-root" class="btn btn-ghost btn-xs">Add folder</button>
-              <span id="count" class="ml-auto text-xs text-base-content/50"></span>
+              <button id="refresh" class="btn btn-ghost btn-xs text-[11px]">Rescan</button>
+              <button id="add-root" class="btn btn-ghost btn-xs text-[11px]">Add folder</button>
+              <span id="count" class="ml-auto text-[10.5px] tabular-nums text-base-content/40"></span>
             </div>
           </div>
 
-          <div id="tree" class="w-full flex-1 overflow-y-auto p-2 space-y-0.5"></div>
+          <div id="tree" class="w-full flex-1 overflow-y-auto p-1.5 space-y-0.5"></div>
 
           <div id="roots" class="border-t border-base-300 p-2 space-y-1 shrink-0 empty:hidden"></div>
         </aside>

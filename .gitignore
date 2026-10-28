@@ -1,4 +1,5 @@
 node_modules/
 public/app.css
+public/vendor/
 data/
 .DS_Store
