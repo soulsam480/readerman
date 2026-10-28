@@ -70,6 +70,7 @@
                 spellcheck="false"
                 x-model="query"
                 x-ref="search"
+                @keydown="handleSearchKey($event)"
               />
             </label>
             <div class="flex items-center gap-1">
@@ -83,12 +84,13 @@
             <p class="px-1.5 py-2 text-[12px] text-base-content/50" x-show="isSearching && !results.length">No files match.</p>
 
             <ul class="space-y-px" x-show="isSearching">
-              <template x-for="file in results" :key="file.path">
+              <template x-for="(file, index) in results" :key="file.path">
                 <li>
                   <button
                     type="button"
+                    data-result
                     class="w-full rounded-field px-1.5 py-[3px] text-left transition-colors hover:bg-base-300/70"
-                    :class="isCurrent(file) && 'bg-base-300'"
+                    :class="{ 'bg-base-300': index === activeIndex || isCurrent(file) }"
                     @click="open(file)"
                   >
                     <span class="block truncate text-[13px] leading-[18px] text-base-content/85" x-text="displayName(file.name)"></span>

@@ -16,6 +16,7 @@ Alpine.data("reader", () => ({
   projectsRoot: "",
   scannedAt: 0,
   query: "",
+  activeIndex: 0,
   current: null,
   html: "",
   errorMessage: "",
@@ -56,6 +57,7 @@ Alpine.data("reader", () => ({
     await this.loadIndex();
     this.startWatching();
     await this.openLinkedDocument();
+    this.$watch("query", () => this.resetSelection());
   },
 
   destroy() {
@@ -69,6 +71,28 @@ Alpine.data("reader", () => ({
     this.extraRoots = index.extraRoots;
     this.projectsRoot = index.projectsRoot;
     this.scannedAt = index.scannedAt;
+  },
+
+  resetSelection() {
+    this.activeIndex = this.results.length ? 0 : -1;
+  },
+
+  /** Arrow keys wrap around, so Down on the last result returns to the first. */
+  moveSelection(step) {
+    const total = this.results.length;
+    if (!total) return;
+    this.activeIndex = (this.activeIndex + step + total) % total;
+    this.$nextTick(() => this.scrollSelectionIntoView());
+  },
+
+  scrollSelectionIntoView() {
+    const rows = this.$root.querySelectorAll("[data-result]");
+    rows[this.activeIndex]?.scrollIntoView({ block: "nearest" });
+  },
+
+  openActiveResult() {
+    const file = this.results[this.activeIndex] ?? this.results[0];
+    if (file) void this.open(file);
   },
 
   async open(file) {
@@ -174,17 +198,38 @@ Alpine.data("reader", () => ({
     if (match) await this.open(match);
   },
 
+  /** Explicit key names: Alpine's key modifiers do not cover ArrowDown or ArrowUp. */
+  handleSearchKey(event) {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      this.moveSelection(1);
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      this.moveSelection(-1);
+      return;
+    }
+
+    if (event.key === "Enter") {
+      event.preventDefault();
+      this.openActiveResult();
+      return;
+    }
+
+    if (event.key === "Escape") {
+      this.query = "";
+      this.resetSelection();
+      this.$refs.search.blur();
+    }
+  },
+
   handleKeydown(event) {
     if (event.key === "/" && !isTypingTarget(document.activeElement)) {
       event.preventDefault();
       document.getElementById("nav").checked = true;
       this.focusSearch();
-      return;
-    }
-
-    if (event.key === "Escape" && document.activeElement === this.$refs.search) {
-      this.query = "";
-      this.$refs.search.blur();
     }
   },
 

@@ -58,6 +58,8 @@ Use Add folder in the sidebar for markdown outside those directories. Absolute p
 - The page checks the open file every 2.5 seconds. When the file changes, the text updates
   in place, the scroll position stays, and an `updated` badge appears. You can read a plan
   while the agent writes it.
+- In the search box, Up and Down move through the results and Enter opens the selected one.
+  The list wraps, so Down on the last result returns to the first.
 - Rescan walks the projects root again, so a new doc directory appears without a restart.
 - The URL holds the open file as `?path=/abs/file.md`, so a bookmark or a reload returns to
   the same document.
