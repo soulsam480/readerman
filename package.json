@@ -1,0 +1,21 @@
+{
+  "name": "reader",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run css && bun --watch src/server.ts",
+    "start": "bun run css && bun run src/server.ts",
+    "css": "bunx @tailwindcss/cli -i src/styles.css -o public/app.css --minify",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "marked": "^18.1.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.3.3",
+    "@tailwindcss/typography": "^0.5.20",
+    "daisyui": "^5.7.50",
+    "tailwindcss": "^4.3.3"
+  }
+}

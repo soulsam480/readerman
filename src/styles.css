@@ -1,0 +1,15 @@
+@import "tailwindcss";
+@source "../public";
+@plugin "daisyui" {
+  themes: light --default, dark --prefersdark;
+}
+@plugin "@tailwindcss/typography";
+
+/* Long commands and URLs inside plan docs should scroll, not push the page wide. */
+#doc pre {
+  overflow-x: auto;
+  max-width: 100%;
+}
+#doc :is(p, li, h1, h2, h3, h4, td) {
+  overflow-wrap: anywhere;
+}
