@@ -34,6 +34,39 @@
   font-style: italic;
 }
 
+/* Mermaid diagrams rendered by pele. Colors come from the active daisyUI theme, so a
+   theme switch needs no re-render. */
+#doc .pele-diagram {
+  --pele-bg: transparent;
+  --pele-fg: var(--color-base-content);
+  --pele-muted: color-mix(in oklab, var(--color-base-content) 55%, transparent);
+  --pele-line: color-mix(in oklab, var(--color-base-content) 35%, transparent);
+  --pele-surface: var(--color-base-200);
+  --pele-surface-alt: var(--color-base-300);
+  --pele-border: var(--color-base-300);
+  --pele-accent: var(--color-primary);
+  --pele-font: inherit;
+  --pele-radius: var(--radius-field);
+  --pele-series-1: var(--color-primary);
+  --pele-series-2: var(--color-secondary);
+  --pele-series-3: var(--color-accent);
+  --pele-series-4: var(--color-info);
+  --pele-series-5: var(--color-success);
+  --pele-series-6: var(--color-warning);
+  --pele-series-7: var(--color-error);
+  --pele-series-8: var(--color-neutral);
+
+  display: flex;
+  justify-content: center;
+  overflow-x: auto;
+  margin: 1.5rem 0;
+}
+
+#doc .pele-diagram svg {
+  max-width: 100%;
+  height: auto;
+}
+
 #doc :is(p, li, h1, h2, h3, h4, td) {
   overflow-wrap: anywhere;
 }

@@ -64,6 +64,9 @@ Use Add folder in the sidebar for markdown outside those directories. Absolute p
 - Code blocks that name a language are colored with sugar-high (12.6 KB gzipped, bundled at
   build time). Blocks without a language stay plain, because they are usually shell output
   or file trees.
+- A `mermaid` block becomes a diagram. Pele renders it to SVG in the browser and reads its
+  colors from the active theme. If a diagram does not parse, the note above it explains the
+  error and the source stays readable.
 - A link to another `.md` file opens in the reader when that file is in the index. Other
   links open in a new tab.
 - `/api/file` serves only `.md` files inside a doc directory or an added folder. Anything

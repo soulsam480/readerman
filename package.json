@@ -9,11 +9,12 @@
     "start": "bun run build && bun run src/server.ts",
     "css": "bunx @tailwindcss/cli -i src/styles.css -o public/app.css --minify",
     "vendor": "bun run build:vendor",
-    "build:vendor": "bun build src/vendor/marked.js src/vendor/sugar.js src/vendor/alpine.js --minify --target=browser --format=esm --outdir=public/vendor --entry-naming=[name].min.js"
+    "build:vendor": "bun build src/vendor/marked.js src/vendor/sugar.js src/vendor/alpine.js src/vendor/pele.js --minify --target=browser --format=esm --outdir=public/vendor --entry-naming=[name].min.js"
   },
   "dependencies": {
     "alpinejs": "^3.17.5",
     "marked": "^18.1.1",
+    "pele": "^1.12.0",
     "sugar-high": "^2.6.4"
   },
   "devDependencies": {
