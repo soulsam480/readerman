@@ -324,6 +324,22 @@ function paint(doc, content) {
   docEl.classList.remove("hidden");
 }
 
+async function fetchFile(path) {
+  // A restart of the server can land between a click and the read; retrying for a few
+  // seconds covers the build and rescan that a fresh start does first.
+  for (const wait of [0, 500, 1200, 2500]) {
+    if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
+    try {
+      const response = await fetch(`/api/file?path=${encodeURIComponent(path)}`);
+      if (response.ok) return await response.json();
+      if (response.status === 403 || response.status === 404) return null;
+    } catch {
+      // Connection refused while the server restarts.
+    }
+  }
+  return null;
+}
+
 async function open(doc) {
   const scrollWas = doc.path === current?.path ? paneEl.scrollTop : 0;
   current = doc;
@@ -331,14 +347,23 @@ async function open(doc) {
   history.replaceState(null, "", `?path=${encodeURIComponent(doc.path)}`);
   renderTree();
 
-  const response = await fetch(`/api/file?path=${encodeURIComponent(doc.path)}`);
-  if (!response.ok) {
-    docEl.innerHTML = `<div class="alert alert-error">Could not read this file.</div>`;
+  const payload = await fetchFile(doc.path);
+  if (!payload) {
+    docEl.innerHTML = "";
+    const box = document.createElement("div");
+    box.className = "alert alert-error";
+    const text = document.createElement("span");
+    text.textContent = "Could not read this file. The server may be restarting.";
+    const retry = document.createElement("button");
+    retry.className = "btn btn-sm";
+    retry.textContent = "Try again";
+    retry.addEventListener("click", () => open(doc));
+    box.append(text, retry);
+    docEl.append(box);
     emptyEl.classList.add("hidden");
     docEl.classList.remove("hidden");
     return;
   }
-  const payload = await response.json();
   doc.mtime = payload.mtime;
   doc.size = payload.size;
   paint(doc, payload.content);

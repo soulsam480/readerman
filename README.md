@@ -18,11 +18,32 @@ bun run dev            # same, but restarts the server on change
 `PORT` overrides the port. `bun run build` rebuilds the stylesheet and the client vendor
 bundle after editing `public/index.html`, `public/app.js`, or `src/styles.css`.
 
-To keep it running in the background:
+## Run it automatically
 
-```sh
-nohup bun run start > /tmp/reader.log 2>&1 &
+`plugin/reader/index.ts` is an OpenCode server plugin that starts the reader whenever
+OpenCode's server comes up, and re-checks it every 10 seconds so a crash heals itself.
+Register it once in `~/.config/opencode/opencode.json`:
+
+```jsonc
+{
+  "plugins": ["/Users/<you>/projects/personal/reader/plugin/reader"]
+}
 ```
+
+Two deliberate choices:
+
+- **No cleanup function.** Saving config reloads plugins, and cleanup would kill the page
+  you are reading mid-paragraph. Leaving it running also means restarting OpenCode never
+  takes the reader down.
+- **Idempotent start.** OpenCode loads a plugin once per active location, so several setups
+  can fire at once. They coordinate through `/tmp/reader-spawn.lock`: one builds and spawns,
+  the rest poll, and an instance that loses the port exits with
+  `reader already running` instead of a stack trace.
+
+Logs go to `/tmp/reader.log`. To stop it, `pkill -f "src/server.ts"` — the watchdog brings
+it back within 10 seconds, which is the point. To stop it for good, remove the plugin entry.
+
+Starting it by hand is still fine and skips none of this: `bun run start`.
 
 ## What gets indexed
 
