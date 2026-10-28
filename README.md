@@ -1,28 +1,28 @@
 # Reader
 
-A small local server that collects the markdown I write with the agent — plans, specs,
-design docs, SDD progress — from every project under `~/projects`, and serves them in a
-browser with a tree and a file filter.
+A local server that collects the markdown I write with the agent and serves it in a
+browser. Plans, specs, design docs, and SDD progress land in one list, from every project
+under `~/projects`.
 
-Two ways in, on one screen: browse the tree, or type part of a filename. Nothing is loaded
-until you click it, so the browser never holds the corpus in memory.
+You find a document two ways. Browse the tree on the left, or type part of a filename. The
+browser reads a file only when you click it.
 
 ## Run
 
 ```sh
 bun install
-bun run start          # builds app.css + the vendor bundle, then serves http://localhost:4599
-bun run dev            # same, but restarts the server on change
+bun run start          # builds the stylesheet and bundles, then serves http://localhost:4599
+bun run dev            # same, but restarts when the server code changes
 ```
 
-`PORT` overrides the port. `bun run build` rebuilds the stylesheet and the client vendor
-bundle after editing `public/index.html`, `public/app.js`, or `src/styles.css`.
+Set `PORT` to change the port. Run `bun run build` after you edit anything under `public/`
+or `src/styles.css`.
 
-## Run it automatically
+## Start automatically
 
-`plugin/reader/index.ts` is an OpenCode server plugin that starts the reader whenever
-OpenCode's server comes up, and re-checks it every 10 seconds so a crash heals itself.
-Register it once in `~/.config/opencode/opencode.json`:
+`plugin/reader/index.ts` starts the reader when the OpenCode server starts. It checks every
+10 seconds and starts the reader again if the process died. Add one line to
+`~/.config/opencode/opencode.json`:
 
 ```jsonc
 {
@@ -30,83 +30,54 @@ Register it once in `~/.config/opencode/opencode.json`:
 }
 ```
 
-Two deliberate choices:
+The plugin does not stop the reader when it unloads. A configuration save reloads plugins,
+and a restart in the middle of a document loses your place. OpenCode loads a plugin once for
+each open location, so the copies coordinate through `/tmp/reader-spawn.lock`. One copy
+starts the server and the others wait.
 
-- **No cleanup function.** Saving config reloads plugins, and cleanup would kill the page
-  you are reading mid-paragraph. Leaving it running also means restarting OpenCode never
-  takes the reader down.
-- **Idempotent start.** OpenCode loads a plugin once per active location, so several setups
-  can fire at once. They coordinate through `/tmp/reader-spawn.lock`: one builds and spawns,
-  the rest poll, and an instance that loses the port exits with
-  `reader already running` instead of a stack trace.
+The log is at `/tmp/reader.log`. `pkill -f "src/server.ts"` stops the reader and the check
+starts it again within 10 seconds. Remove the plugin line to stop it for good.
 
-Logs go to `/tmp/reader.log`. To stop it, `pkill -f "src/server.ts"` — the watchdog brings
-it back within 10 seconds, which is the point. To stop it for good, remove the plugin entry.
+## What it reads
 
-Starting it by hand is still fine and skips none of this: `bun run start`.
+Three directories, at any depth inside `~/projects`:
 
-## What gets indexed
+- `.opencode/` holds plans, designs, and learnings.
+- `.superpowers/` holds SDD briefs and progress.
+- `docs/` holds project documentation.
 
-Only these directories, at any depth, inside `~/projects`:
+It skips everything else: vendored gems, `node_modules`, `.git`, `.worktrees`, and README
+files in project roots. That leaves about 480 files on this machine, and the walk takes a
+few milliseconds. There is no database and no cached copy.
 
-| Directory | Holds |
-| --- | --- |
-| `.opencode/` | plans, designs, learnings |
-| `.superpowers/` | SDD briefs and progress |
-| `docs/` | project documentation |
+Use Add folder in the sidebar for markdown outside those directories. Absolute paths and
+`~/` both work. The list lives in `data/config.json`.
 
-Everything else is left alone — no vendored gems, no `node_modules`, no `.git`, no
-`.worktrees`, no root READMEs. That comes to roughly 480 files on this machine, and the
-walk takes a few milliseconds, so there is no database and no cached copy of anything.
+## Behavior
 
-Folders outside those three can be added from the UI (**Add folder**); absolute paths and
-`~/` both work. They are stored in `data/config.json` and scanned recursively for
-markdown, alongside the defaults.
-
-## Behaviour worth knowing
-
-- **Live reload.** While a document is open the page polls its mtime every 2.5 seconds.
-  When the file changes — because I am writing it — the text re-renders in place, keeping
-  the scroll position, with a brief `updated` badge. A plan being written can be read as
-  it is written.
-- **Rescan.** `Rescan` re-walks the projects root, so a newly created doc dir appears
-  without restarting the server.
-- **Deep links.** The open file lives in the URL as `?path=/abs/file.md`, so a bookmark or
-  a reload returns to the same document.
-- **Syntax highlighting.** Fenced blocks that name a language are coloured with
-  sugar-high (12.6 KB gzipped, bundled at build time). Bare fences are left alone, because
-  they are usually shell output or file trees rather than code.
-- **Relative links.** A `.md` link inside a document opens in the reader when the target is
-  already indexed; anything else opens in a new tab.
-- **Reading is guarded.** `/api/file` only serves `.md` files that sit inside a default doc
-  dir (or an added folder). Everything else is a 403, including `README.md` in a project
-  root and any path that escapes `~/projects`.
-
-## Endpoints
-
-| Route | Purpose |
-| --- | --- |
-| `GET /api/tree` | File metadata only: path, project, kind, size, mtime |
-| `GET /api/file?path=` | One file's markdown, read from disk per request |
-| `GET /api/stat?path=` | mtime and size, for the live-reload poll |
-| `GET /api/reindex` | Re-walk and report the new count |
-| `POST /api/roots` | Add a folder: `{ "path": "~/projects/work/web/design-notes" }` |
-| `DELETE /api/roots?path=` | Remove an added folder |
+- The page checks the open file every 2.5 seconds. When the file changes, the text updates
+  in place, the scroll position stays, and an `updated` badge appears. You can read a plan
+  while the agent writes it.
+- Rescan walks the projects root again, so a new doc directory appears without a restart.
+- The URL holds the open file as `?path=/abs/file.md`, so a bookmark or a reload returns to
+  the same document.
+- Code blocks that name a language are colored with sugar-high (12.6 KB gzipped, bundled at
+  build time). Blocks without a language stay plain, because they are usually shell output
+  or file trees.
+- A link to another `.md` file opens in the reader when that file is in the index. Other
+  links open in a new tab.
+- `/api/file` serves only `.md` files inside a doc directory or an added folder. Anything
+  else returns 403, including a README in a project root.
 
 ## Layout
 
 ```
-src/scan.ts              walk, classify, and whitelist markdown
-src/server.ts            Bun.serve: JSON API + static files
-src/styles.css          Tailwind 4 + daisyUI 5 + typography + token colors
-src/vendor/sugar-entry.js  bundle entry for sugar-high
-public/index.html       drawer shell, search, add-folder dialog
-public/app.js           tree render, markdown render, highlighting, live poll
-tests/scan.test.ts       scanner and allowlist tests against a fixture tree
-```
-
-## Test
-
-```sh
-bun test
+src/scan.ts          walks the projects and shares the allowlist
+src/index-store.ts   holds the file list and the added folders
+src/api.ts           the six JSON routes
+src/server.ts        Bun.serve, the port, and the router
+public/index.html    Alpine templates for the tree and the document
+public/app.js        the reader component
+public/lib/          fetch, grouping, formatting, markdown
+plugin/reader/       starts and supervises the server
 ```

@@ -1,9 +1,15 @@
 @import "tailwindcss";
 @source "../public";
+
 @plugin "daisyui" {
   themes: light --default, dark --prefersdark;
 }
 @plugin "@tailwindcss/typography";
+
+/* Alpine renders the shell after the module loads; hide the raw template until then. */
+[x-cloak] {
+  display: none !important;
+}
 
 /* Long commands and URLs inside plan docs should scroll, not push the page wide. */
 #doc pre {
@@ -12,7 +18,7 @@
   background-color: var(--color-neutral);
   color: var(--color-neutral-content);
 
-  /* sugar-high reads these as var(--sh-<type>) from the inline spans it emits. */
+  /* sugar-high reads these from the inline spans it emits. */
   --sh-identifier: #c9d1d9;
   --sh-keyword: #c792ea;
   --sh-string: #9ece6a;

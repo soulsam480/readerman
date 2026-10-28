@@ -6,7 +6,7 @@
     <title>Reader</title>
     <link rel="stylesheet" href="/app.css" />
   </head>
-  <body class="h-dvh overflow-hidden">
+  <body class="h-dvh overflow-hidden" x-data="reader()" x-cloak @keydown.window="handleKeydown($event)">
     <div class="drawer lg:drawer-open h-dvh">
       <input id="nav" type="checkbox" class="drawer-toggle" />
 
@@ -19,18 +19,18 @@
           </label>
 
           <div class="min-w-0">
-            <p id="doc-title" class="truncate text-[13.5px] font-medium leading-tight">Reader</p>
-            <p id="doc-path" class="truncate text-[11px] leading-tight text-base-content/45">pick a document</p>
+            <p class="truncate text-[13.5px] font-medium leading-tight" x-text="current ? displayName(current.name) : 'Reader'"></p>
+            <p class="truncate text-[11px] leading-tight text-base-content/45" x-text="current ? current.rel : 'pick a document'"></p>
           </div>
 
           <div class="flex-1"></div>
 
-          <span id="live-badge" class="badge badge-sm badge-ghost hidden">updated</span>
-          <button id="reload" class="btn btn-ghost btn-sm" title="Re-read this file from disk">Reload</button>
+          <span class="badge badge-sm badge-ghost" x-show="justUpdated" x-transition.opacity.duration.200ms>updated</span>
+          <button class="btn btn-ghost btn-sm" @click="reloadCurrent()" :disabled="!current" :class="!current && 'btn-disabled'">Reload</button>
         </header>
 
-        <main id="pane" class="flex-1 overflow-y-auto scroll-smooth">
-          <div id="empty" class="hero h-full">
+        <main class="flex-1 overflow-y-auto" x-ref="pane">
+          <div class="hero h-full" x-show="!html && !errorMessage">
             <div class="hero-content text-center">
               <div class="max-w-md">
                 <h1 class="text-2xl font-semibold">Your plan docs</h1>
@@ -39,11 +39,19 @@
                   <code class="kbd kbd-sm">.superpowers</code> and <code class="kbd kbd-sm">docs</code>
                   across your projects. Search on the left, or press <kbd class="kbd kbd-sm">/</kbd>.
                 </p>
-                <p id="empty-count" class="text-sm text-base-content/40 mt-4"></p>
+                <p class="text-sm text-base-content/40 mt-4" x-text="emptyHint"></p>
               </div>
             </div>
           </div>
-          <article id="doc" class="hidden prose max-w-4xl mx-auto px-6 py-8"></article>
+
+          <div class="max-w-4xl mx-auto px-6 py-8" x-show="errorMessage">
+            <div class="alert alert-error">
+              <span x-text="errorMessage"></span>
+              <button class="btn btn-sm" @click="reloadCurrent()">Try again</button>
+            </div>
+          </div>
+
+          <article id="doc" class="prose max-w-4xl mx-auto px-6 py-8" x-show="html" x-html="html"></article>
         </main>
       </div>
 
@@ -55,33 +63,136 @@
               <svg class="size-4 opacity-40" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" d="m21 21-4.3-4.3M17 11a6 6 0 1 1-12 0 6 6 0 0 1 12 0Z" />
               </svg>
-              <input id="search" type="search" placeholder="Filter files" autocomplete="off" spellcheck="false" />
+              <input
+                type="search"
+                placeholder="Filter files"
+                autocomplete="off"
+                spellcheck="false"
+                x-model="query"
+                x-ref="search"
+              />
             </label>
             <div class="flex items-center gap-1">
-              <button id="refresh" class="btn btn-ghost btn-xs text-[11px]">Rescan</button>
-              <button id="add-root" class="btn btn-ghost btn-xs text-[11px]">Add folder</button>
-              <span id="count" class="ml-auto text-[10.5px] tabular-nums text-base-content/40"></span>
+              <button class="btn btn-ghost btn-xs text-[11px]" @click="rescanAll()">Rescan</button>
+              <button class="btn btn-ghost btn-xs text-[11px]" @click="openFolderDialog()">Add folder</button>
+              <span class="ml-auto text-[10.5px] tabular-nums text-base-content/40" x-text="countLabel"></span>
             </div>
           </div>
 
-          <div id="tree" class="w-full flex-1 overflow-y-auto p-1.5 space-y-0.5"></div>
+          <div class="flex-1 overflow-y-auto p-1.5 space-y-0.5">
+            <p class="px-1.5 py-2 text-[12px] text-base-content/50" x-show="isSearching && !results.length">No files match.</p>
 
-          <div id="roots" class="border-t border-base-300 p-2 space-y-1 shrink-0 empty:hidden"></div>
+            <ul class="space-y-px" x-show="isSearching">
+              <template x-for="file in results" :key="file.path">
+                <li>
+                  <button
+                    type="button"
+                    class="w-full rounded-field px-1.5 py-[3px] text-left transition-colors hover:bg-base-300/70"
+                    :class="isCurrent(file) && 'bg-base-300'"
+                    @click="open(file)"
+                  >
+                    <span class="block truncate text-[13px] leading-[18px] text-base-content/85" x-text="displayName(file.name)"></span>
+                    <span class="block truncate text-[10.5px] leading-[14px] text-base-content/45" x-text="file.rel.split('/').slice(0, -1).join('/')"></span>
+                  </button>
+                </li>
+              </template>
+            </ul>
+
+            <div x-show="!isSearching">
+              <template x-for="project in groups" :key="project.name">
+                <details
+                  class="rounded-field"
+                  :open="project.expanded"
+                  @toggle="expandedProjects[project.name] = $event.target.open"
+                >
+                  <summary
+                    class="flex cursor-pointer select-none list-none items-center gap-1.5 rounded-field px-1.5 py-[5px] hover:bg-base-300/70 [&::-webkit-details-marker]:hidden"
+                  >
+                    <svg class="size-[9px] shrink-0 text-base-content/40" viewBox="0 0 8 8" fill="currentColor">
+                      <path d="M1 0l6 4-6 4z" />
+                    </svg>
+                    <span class="truncate text-[12.5px] font-medium leading-[18px]" x-text="project.name"></span>
+                    <span class="ml-auto shrink-0 text-[10.5px] tabular-nums text-base-content/35" x-text="project.total"></span>
+                  </summary>
+
+                  <div class="ml-[13px] border-l border-base-300 pl-1.5 pb-1">
+                    <template x-for="kind in project.kinds" :key="kind.name">
+                      <div>
+                        <p
+                          class="px-1.5 pt-1 pb-0.5 text-[10px] font-medium uppercase tracking-[0.12em] text-base-content/40"
+                          x-show="kind.showLabel"
+                          x-text="kind.name"
+                        ></p>
+
+                        <template x-for="folder in kind.folders" :key="folder.name">
+                          <div>
+                            <p
+                              class="truncate px-1.5 pt-1.5 pb-0.5 text-[10px] tracking-wide text-base-content/40"
+                              x-show="folder.showLabel"
+                              x-text="folder.name"
+                              :title="folder.name"
+                            ></p>
+
+                            <ul class="space-y-px">
+                              <template x-for="file in folder.files" :key="file.path">
+                                <li>
+                                  <button
+                                    type="button"
+                                    class="flex w-full items-baseline gap-2 rounded-field px-1.5 py-[2px] text-left transition-colors hover:bg-base-300/70"
+                                    :class="isCurrent(file) && 'bg-base-300'"
+                                    @click="open(file)"
+                                  >
+                                    <span
+                                      class="min-w-0 flex-1 truncate text-[13px] leading-[20px]"
+                                      :class="isCurrent(file) ? 'font-medium text-base-content' : 'text-base-content/85'"
+                                      x-text="displayName(file.name)"
+                                      :title="file.name"
+                                    ></span>
+                                    <span class="shrink-0 text-[10.5px] leading-[20px] tabular-nums text-base-content/40" x-text="formatAge(file.mtime)"></span>
+                                  </button>
+                                </li>
+                              </template>
+                            </ul>
+                          </div>
+                        </template>
+                      </div>
+                    </template>
+                  </div>
+                </details>
+              </template>
+            </div>
+          </div>
+
+          <div class="border-t border-base-300 p-2 space-y-1 shrink-0" x-show="extraRoots.length">
+            <p class="px-1 text-[11px] uppercase tracking-wide text-base-content/40">extra folders</p>
+            <template x-for="root in extraRoots" :key="root.path">
+              <div class="flex items-center gap-1 text-xs">
+                <span class="truncate flex-1" x-text="root.label" :title="root.path"></span>
+                <button class="btn btn-ghost btn-xs" @click="removeRoot(root)">remove</button>
+              </div>
+            </template>
+          </div>
         </aside>
       </div>
     </div>
 
-    <dialog id="root-dialog" class="modal">
+    <dialog class="modal" x-ref="folderDialog">
       <div class="modal-box">
         <h3 class="font-semibold text-lg">Add a folder</h3>
         <p class="text-sm text-base-content/60 mt-1">
           Scanned for markdown alongside the default directories. Use an absolute path or <code>~/</code>.
         </p>
-        <input id="root-input" class="input input-sm w-full mt-4" placeholder="~/projects/work/web/design-notes" spellcheck="false" />
-        <p id="root-error" class="text-error text-sm mt-2 hidden"></p>
+        <input
+          class="input input-sm w-full mt-4"
+          placeholder="~/projects/work/web/design-notes"
+          spellcheck="false"
+          x-model="folderDraft"
+          @keydown.enter.prevent="submitFolder()"
+        />
+        <p class="text-error text-sm mt-2" x-show="folderError" x-text="folderError"></p>
         <div class="modal-action">
           <form method="dialog"><button class="btn btn-ghost btn-sm">Cancel</button></form>
-          <button id="root-save" class="btn btn-sm">Add</button>
+          <button class="btn btn-sm" @click="submitFolder()">Add</button>
         </div>
       </div>
       <form method="dialog" class="modal-backdrop"><button>close</button></form>

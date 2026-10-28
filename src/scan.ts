@@ -1,19 +1,35 @@
 import { readdir, stat } from "node:fs/promises";
+import type { Dirent } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve, sep } from "node:path";
 
-/** Everything under here is considered a project sandbox. */
+/** Everything under here is a project sandbox. */
 export const PROJECTS_ROOT = join(homedir(), "projects");
 
-/** The only directory names we harvest markdown from by default. */
+/** The only directory names harvested by default. */
 export const DOC_DIRS = [".opencode", ".superpowers", "docs"] as const;
 
-export type DocKind = (typeof DOC_DIRS)[number];
+export type DocFile = {
+  /** Absolute path on disk. */
+  path: string;
+  /** Path relative to the scanned root, for display. */
+  rel: string;
+  /** Owning project, e.g. "work/web". */
+  project: string;
+  /** Which doc dir it came from, or the extra root's label. */
+  kind: string;
+  name: string;
+  size: number;
+  /** Epoch millis. */
+  mtime: number;
+};
+
+export type ExtraRoot = { path: string; label: string };
 
 const DOC_DIR_SET = new Set<string>(DOC_DIRS);
 
-/** Noise we never want to walk into, even on the way to a doc dir. */
-const SKIP_DIRS = new Set([
+/** Noise we never walk into, even on the way to a doc dir. */
+const SKIPPED_DIRS = new Set([
   "node_modules",
   ".git",
   ".worktrees",
@@ -34,117 +50,107 @@ const SKIP_DIRS = new Set([
   ".memsearch",
 ]);
 
-/** Guards against symlink loops and deep vendor trees. */
+/** Guards against symlink loops and absurd nesting. */
 const MAX_DEPTH = 8;
 
-export type DocFile = {
-  /** Absolute path on disk. */
-  path: string;
-  /** Path relative to the projects root, for display. */
-  rel: string;
-  /** Owning project, e.g. "work/web". */
-  project: string;
-  /** Which default doc dir it came from, or the extra root label. */
-  kind: string;
-  name: string;
-  size: number;
-  /** Epoch millis. */
-  mtime: number;
-};
+const isDirectory = (entry: Dirent) => entry.isDirectory();
+const isMarkdown = (entry: Dirent) => entry.isFile() && entry.name.endsWith(".md");
+const isSkipped = (entry: Dirent) => SKIPPED_DIRS.has(entry.name);
+const isDocDir = (entry: Dirent) => DOC_DIR_SET.has(entry.name);
 
-export type ExtraRoot = { path: string; label: string };
+/** Hidden directories inside a doc dir are noise, except a nested doc dir. */
+const isHiddenNoise = (entry: Dirent) => entry.name.startsWith(".") && !isDocDir(entry);
 
-/** The project label for a path inside the projects root: "work/web", "personal/tts", "cf-compat-probe". */
-function projectOf(absPath: string, root: string): string {
-  const rel = resolve(absPath).slice(resolve(root).length + 1);
-  const parts = rel.split(sep);
-  return parts.length > 2 ? parts.slice(0, 2).join("/") : parts[0] ?? rel;
+async function listDirectory(directory: string): Promise<Dirent[]> {
+  return readdir(directory, { withFileTypes: true }).catch(() => []);
 }
 
-async function walkDocs(dir: string, kind: string, root: string, out: DocFile[]): Promise<void> {
-  let entries;
-  try {
-    entries = await readdir(dir, { withFileTypes: true });
-  } catch {
-    return;
-  }
-  await Promise.all(
-    entries.map(async (entry) => {
-      if (entry.name.startsWith(".") && entry.isDirectory() && entry.name !== ".opencode") {
-        // Hidden dirs inside a doc dir are noise (e.g. .git), except the doc dirs themselves.
-        return;
-      }
-      const full = join(dir, entry.name);
-      if (entry.isDirectory()) {
-        if (SKIP_DIRS.has(entry.name)) return;
-        await walkDocs(full, kind, root, out);
-        return;
-      }
-      if (!entry.isFile() || !entry.name.endsWith(".md")) return;
-      const info = await stat(full).catch(() => null);
-      if (!info) return;
-      out.push({
-        path: full,
-        rel: full.slice(resolve(root).length + 1),
-        project: projectOf(full, root),
-        kind,
-        name: entry.name,
-        size: info.size,
-        mtime: info.mtimeMs,
-      });
-    }),
-  );
+function projectOf(filePath: string, base: string): string {
+  const [first, second, ...rest] = filePath.slice(resolve(base).length + 1).split(sep);
+  const hasNestedProject = rest.length > 0;
+  return hasNestedProject ? `${first}/${second}` : (first ?? "");
 }
 
-/** Walks the projects tree, stopping at the first doc dir it meets and harvesting its markdown. */
-async function walkProjects(dir: string, depth: number, root: string, out: DocFile[]): Promise<void> {
-  if (depth > MAX_DEPTH) return;
-  let entries;
-  try {
-    entries = await readdir(dir, { withFileTypes: true });
-  } catch {
-    return;
-  }
-  await Promise.all(
-    entries.map(async (entry) => {
-      if (!entry.isDirectory()) return;
-      if (SKIP_DIRS.has(entry.name)) return;
-      const full = join(dir, entry.name);
-      if (DOC_DIR_SET.has(entry.name)) {
-        await walkDocs(full, entry.name, root, out);
-        return;
-      }
-      await walkProjects(full, depth + 1, root, out);
+async function toDocFile(filePath: string, kind: string, base: string): Promise<DocFile | null> {
+  const info = await stat(filePath).catch(() => null);
+  if (!info?.isFile()) return null;
+  return {
+    path: filePath,
+    rel: filePath.slice(resolve(base).length + 1),
+    project: projectOf(filePath, base),
+    kind,
+    name: filePath.slice(filePath.lastIndexOf("/") + 1),
+    size: info.size,
+    mtime: info.mtimeMs,
+  };
+}
+
+/** Collects every markdown file under a doc dir (or an added folder). */
+async function collectMarkdown(directory: string, kind: string, base: string): Promise<DocFile[]> {
+  const entries = await listDirectory(directory);
+  const subdirectories = entries.filter((entry) => isDirectory(entry) && !isSkipped(entry) && !isHiddenNoise(entry));
+  const markdown = entries.filter(isMarkdown);
+
+  const [nested, files] = await Promise.all([
+    Promise.all(subdirectories.map((entry) => collectMarkdown(join(directory, entry.name), kind, base))),
+    Promise.all(markdown.map((entry) => toDocFile(join(directory, entry.name), kind, base))),
+  ]);
+
+  return [...files.filter((file): file is DocFile => file !== null), ...nested.flat()];
+}
+
+/** Walks the projects tree, harvesting each doc dir it meets and never entering one twice. */
+async function collectProjects(directory: string, depth: number, base: string): Promise<DocFile[]> {
+  if (depth > MAX_DEPTH) return [];
+  const entries = (await listDirectory(directory)).filter((entry) => isDirectory(entry) && !isSkipped(entry));
+
+  const nested = await Promise.all(
+    entries.map((entry) => {
+      const child = join(directory, entry.name);
+      return isDocDir(entry)
+        ? collectMarkdown(child, entry.name, base)
+        : collectProjects(child, depth + 1, base);
     }),
   );
+
+  return nested.flat();
 }
 
 /** Extra roots are not project-scoped: everything markdown under them counts. */
-async function walkExtraRoot(root: ExtraRoot, out: DocFile[]): Promise<void> {
-  const collected: DocFile[] = [];
-  await walkDocs(root.path, root.label, root.path, collected);
-  for (const file of collected) {
-    out.push({ ...file, rel: file.path.replace(homedir(), "~"), project: root.label, kind: root.label });
-  }
+async function collectExtraRoot(root: ExtraRoot): Promise<DocFile[]> {
+  const files = await collectMarkdown(root.path, root.label, root.path);
+  return files.map((file) => ({
+    ...file,
+    rel: file.path.replace(homedir(), "~"),
+    project: root.label,
+    kind: root.label,
+  }));
 }
 
-export async function scan(extraRoots: ExtraRoot[], base: string = PROJECTS_ROOT): Promise<DocFile[]> {
-  const files: DocFile[] = [];
-  await walkProjects(base, 0, base, files);
-  for (const root of extraRoots) await walkExtraRoot(root, files);
-  files.sort((a, b) => a.rel.localeCompare(b.rel));
-  return files;
+const byRelativePath = (left: DocFile, right: DocFile) => left.rel.localeCompare(right.rel);
+
+export async function scan(extraRoots: ExtraRoot[] = [], base: string = PROJECTS_ROOT): Promise<DocFile[]> {
+  const [projectFiles, extraFiles] = await Promise.all([
+    collectProjects(base, 0, base),
+    Promise.all(extraRoots.map(collectExtraRoot)),
+  ]);
+
+  return [...projectFiles, ...extraFiles.flat()].sort(byRelativePath);
 }
 
 /**
- * True when this absolute path is safe to read: inside the projects root or one of the
- * extra roots, a markdown file, and living under a doc dir (or under an extra root).
+ * True when this absolute path is safe to read: inside the scanned root or an added
+ * folder, a markdown file, and living under a doc dir when it comes from the root.
  */
-export function isAllowed(absPath: string, extraRoots: ExtraRoot[], base: string = PROJECTS_ROOT): boolean {
-  const target = resolve(absPath);
-  if (!target.endsWith(".md")) return false;
-  const inside = (root: string) => target.startsWith(resolve(root) + sep);
-  if (!inside(base) && !extraRoots.some((root) => inside(root.path))) return false;
-  if (extraRoots.some((root) => inside(root.path))) return true;
-  return target.split(sep).some((part) => DOC_DIR_SET.has(part));
+export function isAllowed(target: string, extraRoots: ExtraRoot[] = [], base: string = PROJECTS_ROOT): boolean {
+  const absolute = resolve(target);
+  if (!absolute.endsWith(".md")) return false;
+
+  const isInside = (root: string) => absolute.startsWith(resolve(root) + sep);
+  const isInExtraRoot = extraRoots.some((root) => isInside(root.path));
+
+  if (!isInside(base) && !isInExtraRoot) return false;
+  if (isInExtraRoot) return true;
+
+  return absolute.split(sep).some((part) => DOC_DIR_SET.has(part));
 }
