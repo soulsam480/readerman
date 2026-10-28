@@ -26,8 +26,12 @@ export class ConfigStore {
     const raw = await readFile(this.filePath, "utf8").catch(() => null);
     if (!raw) return EMPTY_CONFIG;
 
-    const parsed = JSON.parse(raw) as Partial<ReaderConfig>;
-    return { extraRoots: Array.isArray(parsed.extraRoots) ? parsed.extraRoots : [] };
+    const parsed = JSON.parse(raw) as { extraRoots?: { path?: unknown }[] };
+    const stored = Array.isArray(parsed.extraRoots) ? parsed.extraRoots : [];
+    const extraRoots = stored
+      .filter((root): root is { path: string } => typeof root?.path === "string")
+      .map((root) => ({ path: root.path }));
+    return { extraRoots };
   }
 
   async write(config: ReaderConfig): Promise<void> {

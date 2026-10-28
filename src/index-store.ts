@@ -1,13 +1,15 @@
 import { readFile, stat } from "node:fs/promises";
 import { resolve } from "node:path";
-import { isAllowed, scan, type DocFile, type ExtraRoot } from "./scan";
+import { isAllowed, scan, type DocFile } from "./scan";
 import { collapseHome, expandHome, type ConfigStore, type ReaderConfig } from "./config";
 import { RequestError } from "./http";
+
+export type DisplayRoot = { path: string; label: string };
 
 export type IndexPayload = {
   projectsRoot: string;
   scannedAt: number;
-  extraRoots: ExtraRoot[];
+  extraRoots: DisplayRoot[];
   files: DocFile[];
 };
 
@@ -48,7 +50,10 @@ export class DocIndex {
     return {
       projectsRoot: collapseHome(this.base),
       scannedAt: this.scannedAt,
-      extraRoots: this.config.extraRoots,
+      extraRoots: this.config.extraRoots.map((root) => ({
+        path: root.path,
+        label: collapseHome(root.path),
+      })),
       files: this.files,
     };
   }
@@ -74,7 +79,7 @@ export class DocIndex {
   }
 
   /** Adds a folder outside the project defaults and rescans. Returns the new list. */
-  async addExtraRoot(rawPath: string): Promise<ExtraRoot[]> {
+  async addExtraRoot(rawPath: string): Promise<DisplayRoot[]> {
     const absolute = resolve(expandHome(rawPath.trim()));
     const info = await stat(absolute).catch(() => null);
 
@@ -83,18 +88,18 @@ export class DocIndex {
       throw new RequestError(409, "already added");
     }
 
-    this.config.extraRoots.push({ path: absolute, label: collapseHome(absolute) });
+    this.config.extraRoots.push({ path: absolute });
     await this.persist();
-    return this.config.extraRoots;
+    return this.summary().extraRoots;
   }
 
-  async removeExtraRoot(absolutePath: string): Promise<ExtraRoot[]> {
+  async removeExtraRoot(absolutePath: string): Promise<DisplayRoot[]> {
     const remaining = this.config.extraRoots.filter((root) => root.path !== absolutePath);
     if (remaining.length === this.config.extraRoots.length) throw new RequestError(404, "not found");
 
     this.config.extraRoots = remaining;
     await this.persist();
-    return this.config.extraRoots;
+    return this.summary().extraRoots;
   }
 
   private async persist(): Promise<void> {

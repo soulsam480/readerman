@@ -124,13 +124,14 @@
                           x-text="kind.name"
                         ></p>
 
-                        <template x-for="folder in kind.folders" :key="folder.name">
+                        <template x-for="folder in kind.folders" :key="folder.path">
                           <div>
                             <p
-                              class="truncate px-1.5 pt-1.5 pb-0.5 text-[10px] tracking-wide text-base-content/40"
-                              x-show="folder.showLabel"
-                              x-text="folder.name"
-                              :title="folder.name"
+                              class="truncate text-[10px] tracking-wide text-base-content/40"
+                              x-show="folder.label"
+                              :style="'padding-left:' + (6 + folder.depth * 12) + 'px; padding-top: 6px; padding-bottom: 2px'"
+                              x-text="folder.label"
+                              :title="folder.path"
                             ></p>
 
                             <ul class="space-y-px">
@@ -138,8 +139,9 @@
                                 <li>
                                   <button
                                     type="button"
-                                    class="flex w-full items-baseline gap-2 rounded-field px-1.5 py-[2px] text-left transition-colors hover:bg-base-300/70"
+                                    class="flex w-full items-baseline gap-2 rounded-field py-[2px] text-left transition-colors hover:bg-base-300/70"
                                     :class="isCurrent(file) && 'bg-base-300'"
+                                    :style="'padding-left:' + (6 + folder.depth * 12 + (folder.label ? 8 : 0)) + 'px; padding-right: 6px'"
                                     @click="open(file)"
                                   >
                                     <span

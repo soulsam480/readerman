@@ -1,7 +1,7 @@
 import { readdir, stat } from "node:fs/promises";
 import type { Dirent } from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve, sep } from "node:path";
+import { basename, join, resolve, sep } from "node:path";
 
 /** Everything under here is a project sandbox. */
 export const PROJECTS_ROOT = join(homedir(), "projects");
@@ -24,7 +24,7 @@ export type DocFile = {
   mtime: number;
 };
 
-export type ExtraRoot = { path: string; label: string };
+export type ExtraRoot = { path: string };
 
 const DOC_DIR_SET = new Set<string>(DOC_DIRS);
 
@@ -118,13 +118,9 @@ async function collectProjects(directory: string, depth: number, base: string): 
 
 /** Extra roots are not project-scoped: everything markdown under them counts. */
 async function collectExtraRoot(root: ExtraRoot): Promise<DocFile[]> {
-  const files = await collectMarkdown(root.path, root.label, root.path);
-  return files.map((file) => ({
-    ...file,
-    rel: file.path.replace(homedir(), "~"),
-    project: root.label,
-    kind: root.label,
-  }));
+  const name = basename(root.path);
+  const files = await collectMarkdown(root.path, name, root.path);
+  return files.map((file) => ({ ...file, rel: `${name}/${file.rel}`, project: name, kind: name }));
 }
 
 const byRelativePath = (left: DocFile, right: DocFile) => left.rel.localeCompare(right.rel);

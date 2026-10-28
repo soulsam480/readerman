@@ -6,31 +6,65 @@ const kindRank = (kind) => {
   return rank === -1 ? KIND_ORDER.length : rank;
 };
 
-/**
- * A folder heading is only worth its line when a doc dir actually has more than one
- * folder. 57% of documents live in a single "plans" folder, so that heading is noise.
- */
-function toFolders(files, folderOf) {
-  const byFolder = new Map();
+/** Folders that carry no meaning on their own: the doc dir root and the usual "plans". */
+const QUIET_FOLDERS = new Set(["", "plans"]);
+
+function buildFolderTrie(files, folderOf) {
+  const root = { children: new Map(), files: [] };
+
   for (const file of files) {
-    const folder = folderOf(file);
-    if (!byFolder.has(folder)) byFolder.set(folder, []);
-    byFolder.get(folder).push(file);
+    let node = root;
+    for (const segment of folderOf(file).split("/").filter(Boolean)) {
+      if (!node.children.has(segment)) node.children.set(segment, { children: new Map(), files: [] });
+      node = node.children.get(segment);
+    }
+    node.files.push(file);
   }
 
-  const showLabel = byFolder.size > 1;
-  const ordered = [...byFolder.keys()].sort((left, right) => {
-    if (left === "") return -1;
-    if (right === "") return 1;
-    return left.localeCompare(right);
-  });
+  return root;
+}
 
-  return ordered.map((name) => ({ name, showLabel, files: byFolder.get(name) }));
+/**
+ * A folder with one child and no files of its own is a pass-through, so it keeps its
+ * path on one line ("skills/impeccable/reference") instead of three empty headings.
+ */
+function flattenFolders(node, depth, prefix, groups) {
+  const names = [...node.children.keys()].sort((left, right) => left.localeCompare(right));
+
+  for (const name of names) {
+    let label = name;
+    let child = node.children.get(name);
+
+    while (child.files.length === 0 && child.children.size === 1) {
+      const [nextName, nextChild] = [...child.children.entries()][0];
+      label = `${label}/${nextName}`;
+      child = nextChild;
+    }
+
+    groups.push({ path: `${prefix}${label}`, label, depth, files: child.files });
+    flattenFolders(child, depth + 1, `${prefix}${label}/`, groups);
+  }
+}
+
+/**
+ * Folder headings are only worth a line when the doc dir really has folders. 57% of
+ * documents live in a single "plans" folder, so that heading would be noise.
+ */
+function toFolders(files, folderOf) {
+  const folders = new Set(files.map(folderOf));
+  const isQuiet = folders.size === 0 || (folders.size === 1 && QUIET_FOLDERS.has([...folders][0]));
+  if (isQuiet) return [{ path: "", label: "", depth: 0, files }];
+
+  const trie = buildFolderTrie(files, folderOf);
+  const groups = [];
+  if (trie.files.length) groups.push({ path: "", label: "", depth: 0, files: trie.files });
+  flattenFolders(trie, 0, "", groups);
+  return groups;
 }
 
 /**
  * Shapes the flat file list into what the sidebar renders:
- * project → doc dir → folder → file. Expansion is passed in so re-renders keep it.
+ * project → doc dir → nested folder → file. Expansion is passed in so re-renders keep it.
  */
 export function buildGroups(files, expandedProjects, folderOf) {
   const byProject = new Map();
