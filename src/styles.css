@@ -70,3 +70,98 @@
 #doc :is(p, li, h1, h2, h3, h4, td) {
   overflow-wrap: anywhere;
 }
+
+/* Only in the printed copy: the on-screen tree and toolbar make no sense on paper. */
+.print-only {
+  display: none;
+}
+
+@media print {
+  /* The app is a full-height shell with an inner scroller. Printing that shell prints one
+     viewport, so every layer becomes a normal document first. */
+  html,
+  body,
+  .drawer,
+  .drawer-content,
+  main {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .drawer-side,
+  .drawer-toggle,
+  header.navbar {
+    display: none !important;
+  }
+
+  main,
+  #doc {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid #ccc;
+  }
+
+  .print-only h1 {
+    font-size: 16pt;
+    font-weight: 600;
+  }
+
+  .print-only p {
+    font-size: 8pt;
+    color: #555;
+  }
+
+  /* Paper has no dark code panels, and no horizontal scrolling. */
+  #doc pre,
+  #doc pre * {
+    background: transparent !important;
+    color: #111 !important;
+  }
+
+  #doc pre {
+    white-space: pre-wrap !important;
+    overflow: visible !important;
+    border: 1px solid #ddd;
+    padding: 0.5rem 0.75rem;
+  }
+
+  #doc pre code {
+    white-space: pre-wrap !important;
+  }
+
+  #doc .pele-diagram,
+  #doc pre,
+  #doc table,
+  #doc blockquote,
+  #doc img {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  #doc h1,
+  #doc h2,
+  #doc h3,
+  #doc h4 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  #doc a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  @page {
+    margin: 14mm;
+  }
+}

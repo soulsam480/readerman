@@ -60,6 +60,10 @@ Use Add folder in the sidebar for markdown outside those directories. Absolute p
   while the agent writes it.
 - In the search box, Up and Down move through the results and Enter opens the selected one.
   The list wraps, so Down on the last result returns to the first.
+- Print opens the browser print dialog, where Save as PDF makes the file. The print styles
+  remove the sidebar and the fixed-height shell, so the whole document paginates instead of
+  one screen.
+- Copy puts the markdown source on the clipboard.
 - Rescan walks the projects root again, so a new doc directory appears without a restart.
 - The URL holds the open file as `?path=/abs/file.md`, so a bookmark or a reload returns to
   the same document.

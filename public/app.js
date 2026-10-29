@@ -18,7 +18,10 @@ Alpine.data("reader", () => ({
   query: "",
   activeIndex: 0,
   current: null,
+  markdown: "",
   html: "",
+  copied: false,
+  copyTimer: null,
   errorMessage: "",
   justUpdated: false,
   expandedProjects: {},
@@ -63,6 +66,7 @@ Alpine.data("reader", () => ({
   destroy() {
     clearInterval(this.watchTimer);
     clearTimeout(this.badgeTimer);
+    clearTimeout(this.copyTimer);
   },
 
   async loadIndex() {
@@ -108,9 +112,11 @@ Alpine.data("reader", () => ({
       const document = await fetchDocument(file.path);
       file.mtime = document.mtime;
       file.size = document.size;
+      this.markdown = document.content;
       this.html = renderMarkdown(document.content, (href) => this.siblingOpener(file, href));
       this.errorMessage = "";
     } catch (error) {
+      this.markdown = "";
       this.html = "";
       this.errorMessage = `Could not read ${file.name}. ${error.message}`;
     }
@@ -125,6 +131,25 @@ Alpine.data("reader", () => ({
 
   async reloadCurrent() {
     if (this.current) await this.loadDocument(this.current);
+  },
+
+  /** Copies the markdown source, so it pastes cleanly into an editor or a chat. */
+  async copyDocument() {
+    if (!this.markdown) return;
+
+    try {
+      await navigator.clipboard.writeText(this.markdown);
+      this.copied = true;
+      clearTimeout(this.copyTimer);
+      this.copyTimer = setTimeout(() => (this.copied = false), 1_600);
+    } catch {
+      this.errorMessage = "The browser refused to copy. Open the page over localhost and try again.";
+    }
+  },
+
+  /** The browser's own print dialog, where "Save as PDF" makes the file. */
+  printDocument() {
+    if (this.html) window.print();
   },
 
   async rescanAll() {

@@ -26,7 +26,9 @@
           <div class="flex-1"></div>
 
           <span class="badge badge-sm badge-ghost" x-show="justUpdated" x-transition.opacity.duration.200ms>updated</span>
-          <button class="btn btn-ghost btn-sm" @click="reloadCurrent()" :disabled="!current" :class="!current && 'btn-disabled'">Reload</button>
+          <button class="btn btn-ghost btn-sm" @click="copyDocument()" :disabled="!markdown" x-text="copied ? 'Copied' : 'Copy'"></button>
+          <button class="btn btn-ghost btn-sm" @click="printDocument()" :disabled="!html">Print</button>
+          <button class="btn btn-ghost btn-sm" @click="reloadCurrent()" :disabled="!current">Reload</button>
         </header>
 
         <main class="flex-1 overflow-y-auto" x-ref="pane">
@@ -42,6 +44,11 @@
                 <p class="text-sm text-base-content/40 mt-4" x-text="emptyHint"></p>
               </div>
             </div>
+          </div>
+
+          <div class="print-only">
+            <h1 x-text="current ? displayName(current.name) : ''"></h1>
+            <p x-text="current?.rel"></p>
           </div>
 
           <div class="max-w-4xl mx-auto px-6 py-8" x-show="errorMessage">
